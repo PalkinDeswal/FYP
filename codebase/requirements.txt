@@ -1,0 +1,13 @@
+streamlit
+pandas
+numpy
+prophet
+xgboost
+scikit-learn
+plotly
+matplotlib
+seaborn
+PyPDF2
+streamlit-lottie
+requests
+statsmodels
