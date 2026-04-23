@@ -6,6 +6,21 @@ def calculate_rfm(df):
     """
     Calculates Recency, Frequency, and Monetary scores for customer segmentation.
     """
+    if df is None or df.empty:
+        return pd.DataFrame(
+            columns=[
+                "customer_name",
+                "Recency",
+                "Frequency",
+                "Monetary",
+                "R",
+                "F",
+                "M",
+                "RFM_Score",
+                "Segment",
+            ]
+        )
+
     # Use max date in dataset as 'today' for recency calculation
     today = df['order_date'].max()
     
@@ -17,15 +32,28 @@ def calculate_rfm(df):
     
     rfm.columns = ['Recency', 'Frequency', 'Monetary']
     
-    # Create segments based on quartiles
+    def _score_percentile(series: pd.Series, higher_is_better: bool, n_bins: int = 4) -> pd.Series:
+        """
+        Robust alternative to qcut for small/low-variance slices.
+        Produces integer scores in [1, n_bins] even with many ties.
+        """
+        s = pd.to_numeric(series, errors="coerce")
+        if s.dropna().nunique() <= 1:
+            # If everything is identical (or all NaN), put customers in the middle.
+            return pd.Series(2, index=series.index, dtype="int64")
+
+        ranked = s.rank(method="average", pct=True)
+        if not higher_is_better:
+            ranked = (-s).rank(method="average", pct=True)
+
+        scores = np.ceil(ranked * n_bins)
+        scores = np.clip(scores, 1, n_bins)
+        return pd.Series(scores.astype(int), index=series.index, dtype="int64")
+
     # Lower recency is better, higher frequency/monetary is better
-    r_labels = range(4, 0, -1)
-    f_labels = range(1, 5)
-    m_labels = range(1, 5)
-    
-    rfm['R'] = pd.qcut(rfm['Recency'], q=4, labels=r_labels, duplicates='drop')
-    rfm['F'] = pd.qcut(rfm['Frequency'], q=4, labels=f_labels, duplicates='drop')
-    rfm['M'] = pd.qcut(rfm['Monetary'], q=4, labels=m_labels, duplicates='drop')
+    rfm["R"] = _score_percentile(rfm["Recency"], higher_is_better=False, n_bins=4)
+    rfm["F"] = _score_percentile(rfm["Frequency"], higher_is_better=True, n_bins=4)
+    rfm["M"] = _score_percentile(rfm["Monetary"], higher_is_better=True, n_bins=4)
     
     rfm['RFM_Score'] = rfm[['R', 'F', 'M']].sum(axis=1)
     
